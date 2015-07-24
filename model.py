@@ -32,13 +32,6 @@ def create_data():
     db.connect()
     db.create_tables([UsageDatum, SumDatum])
 
-    value = UsageDatum()
-    value.kW = 12.34
-    value.save()
-
-    total = SumDatum()
-    total.kWh = 4567.89
-    total.save()
 
 if __name__ == '__main__':
     log.info('Creating database...')
