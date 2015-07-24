@@ -1,3 +1,4 @@
 peewee
 pyserial
 requests
+flask
