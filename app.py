@@ -2,6 +2,7 @@
 
 __author__ = 'phubbard'
 __date__ = '7/23/15'
+# see https://pythonspot.com/flask-and-great-looking-charts-using-chart-js/
 
 from peewee import *
 import datetime
@@ -14,7 +15,9 @@ from model import *
 app = Flask(__name__)
 
 def get_todays_readings():
+    log.info(datetime.datetime.now())
     usage_vals = UsageDatum.select().where(UsageDatum.timestamp >= datetime.date.today())
+    log.info(datetime.datetime.now())
     return usage_vals
 
 def get_todays_totals():
@@ -28,8 +31,10 @@ def favicon():
 
 @app.route('/')
 def chart():
-    labels = None
-    values = [x.kW for x in get_todays_readings()]
+
+    labels, values = zip(*[(x.timestamp, x.kW) for x in get_todays_readings()[::108]])
+#    labels = [x.timestamp for x in get_todays_readings()][::108]
+#    values = [x.kW for x in get_todays_readings()][::108]
     return render_template('chart.html', values=values, labels=labels)
 
 if __name__ == '__main__':
