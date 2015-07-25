@@ -34,5 +34,4 @@ def create_data():
 
 
 if __name__ == '__main__':
-    log.info('Creating database...')
     create_data()

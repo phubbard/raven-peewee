@@ -7,18 +7,35 @@ __date__ = '7/23/15'
 from peewee import *
 import datetime
 import logging
-from flask import Flask, Markup, render_template
+import os
+from math import floor
+from flask import Flask, Markup, render_template, send_from_directory
 
 from config import *
 from model import *
 
 app = Flask(__name__)
 
-def get_todays_readings():
-    log.info(datetime.datetime.now())
+log = logging.getLogger('raven-app')
+
+def calc_stride(num_max, item_count):
+    if item_count <= num_max:
+        return 1
+
+    array_stride = int(floor(item_count / num_max))
+    return array_stride
+
+def get_yesterdays_readings(num_final=50):
+    today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+    usage_vals = UsageDatum.select().where(UsageDatum.timestamp >= yesterday and UsageDatum.timestamp < today)
+    array_stride = calc_stride(num_final, usage_vals.count())
+    return usage_vals[::array_stride]
+    
+def get_todays_readings(num_final=50):
     usage_vals = UsageDatum.select().where(UsageDatum.timestamp >= datetime.date.today())
-    log.info(datetime.datetime.now())
-    return usage_vals
+    array_stride = calc_stride(num_final, usage_vals.count())
+    return usage_vals[::array_stride]
 
 def get_todays_totals():
     usage_vals = SumDatum.select().where(SumDatum.timestamp >= datetime.date.today())
@@ -32,10 +49,10 @@ def favicon():
 @app.route('/')
 def chart():
 
-    labels, values = zip(*[(x.timestamp, x.kW) for x in get_todays_readings()[::108]])
-#    labels = [x.timestamp for x in get_todays_readings()][::108]
-#    values = [x.kW for x in get_todays_readings()][::108]
-    return render_template('chart.html', values=values, labels=labels)
+    labels, values = zip(*[(x.timestamp, x.kW) for x in get_todays_readings()])
+
+    y_labels, y_values = zip(*[(x.timestamp, x.kW) for x in get_yesterdays_readings()])
+    return render_template('chart.html', values=values, labels=labels, yesterdays_values=y_values, yesterdays_labels=y_labels)
 
 if __name__ == '__main__':
 #    log.debug("Today's readings:")

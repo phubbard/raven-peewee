@@ -1,8 +1,21 @@
-<!DOCTYPE html><html lang="en"><head>   <meta charset="utf-8" />   <title>Chart.js </title>      <!-- import plugin script -->   <script src='static/Chart.min.js'></script>   </head><body>
-<h1>Power Use</h1><!-- bar chart canvas element --><canvas id="chart" width="1024" height="768"></canvas>
+<!DOCTYPE html><html lang="en">
+<head>   
+<meta charset="utf-8" />   
+<title>Power and energy consumption</title>
+      
+<!-- import plugin script -->   <script src='static/Chart.min.js'></script>   
+</head><body>
+
+<h2>Today</h2>
+<!-- bar chart canvas element -->
+<canvas id="today" width="1024" height="768"></canvas>
+
+<h2>Yesterday</h2>
+<canvas id="yesterday" width="1024" height="768"></canvas>
+
 <script>
-   // bar chart data
-   var barData = {
+   // chart data
+   var todayData = {
    labels : [{% for item in labels %}
                   "{{item}}",
               {% endfor %}],
@@ -17,14 +30,40 @@
       }
       ]
    }
+   // chart data
+   var yesterdayData = {
+   labels : [{% for item in yesterday_labels %}
+                  "{{item}}",
+              {% endfor %}],
+   datasets : [
+      {
+            fillColor: "rgba(151,187,205,0.2)",
+            strokeColor: "rgba(151,187,205,1)",
+            pointColor: "rgba(151,187,205,1)",
+         data : [{% for item in yesterday_values %}
+                      {{item}},
+                    {% endfor %}]
+      }
+      ]
+   }
  
-   // get bar chart canvas
-   var mychart = document.getElementById("chart").getContext("2d");
+   // get chart canvas
+   var today_chart = document.getElementById("today").getContext("2d");
  
-   steps = 10
-   max = 10
-   // draw bar chart
-   new Chart(mychart).Bar(barData, {
+   // draw chart
+   new Chart(today_chart).Line(todayData, {
+        scaleStartValue: 0,
+        scaleShowVerticalLines: true,
+        scaleShowGridLines : true,
+        barShowStroke : true,
+        scaleShowLabels: true
+   });
+ 
+   // get chart canvas
+   var yesterday_chart = document.getElementById("yesterday").getContext("2d");
+ 
+   // draw chart
+   new Chart(yesterday_chart).Line(yesterdayData, {
         scaleStartValue: 0,
         scaleShowVerticalLines: true,
         scaleShowGridLines : true,

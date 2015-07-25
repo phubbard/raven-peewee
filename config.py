@@ -7,7 +7,7 @@ from peewee import *
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s %(message)s')
-log = logging.getLogger('raven-store')
+
 
 # See https://github.com/coleifer/peewee
 db = SqliteDatabase('data.db', threadlocals=True)

@@ -26,7 +26,10 @@ from model import *
 from config import *
 
 
+log = logging.getLogger('raven-capture')
+
 def get_demand_chunk(serial):
+    # FIXME Bug where it never re-syncs if reads start mid-block. Needs a rewrite.
 
     buf = ''
     in_element = False
@@ -48,7 +51,7 @@ def get_demand_chunk(serial):
                 buf += in_buf
                 closestring = '</CurrentSummationDelivered>'
                 continue
-            else: # Keep waiting for start of element we want                                                                                                                                                                                 
+            else:
                 continue
 
         if in_element:
@@ -156,8 +159,8 @@ def loop(serial):
                     log.info('Current Usage: ' + demand['demand'] + 'W')
                     log.debug('Meter not yet read')
 
-        except:
-            log.info('Ignoring parse errors')
+        except Exception, err:
+            log.exception('Caught a parse or DB error: ')
             continue
 
         # TODO return pre-set X and Y from process_demand
@@ -174,8 +177,6 @@ def setup():
     cf.read(cfg_file)
     log.info('Opening Raven...')
     serial_port = serial.Serial(cf.get('raven', 'port'), cf.getint('raven', 'baud'))
-
-    log.info('Starting loop...')
     loop(serial_port)
 
 if __name__ == '__main__':
