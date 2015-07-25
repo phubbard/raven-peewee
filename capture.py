@@ -154,7 +154,7 @@ def loop(serial):
                     log.info('Last Actual Meter Reading: ' + str(hardmeterreading) + 'kWh (possibly stale reading)')
                 else:
                     log.info('Current Usage: ' + demand['demand'] + 'W')
-                    log.info('Meter not yet read')
+                    log.debug('Meter not yet read')
 
         except:
             log.info('Ignoring parse errors')
