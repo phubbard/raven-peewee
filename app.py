@@ -52,7 +52,7 @@ def chart():
     labels, values = zip(*[(x.timestamp, x.kW) for x in get_todays_readings()])
 
     y_labels, y_values = zip(*[(x.timestamp, x.kW) for x in get_yesterdays_readings()])
-    return render_template('chart.html', values=values, labels=labels, yesterdays_values=y_values, yesterdays_labels=y_labels)
+    return render_template('chart.html', values=values, labels=labels, yesterday_values=y_values, yesterday_labels=y_labels)
 
 if __name__ == '__main__':
 #    log.debug("Today's readings:")
