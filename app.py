@@ -26,9 +26,11 @@ def calc_stride(num_max, item_count):
     return array_stride
 
 def get_yesterdays_readings(num_final=50):
+    # This needs a ton of work. And an index on the column.
+    # See http://peewee.readthedocs.org/en/latest/peewee/querying.html
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
-    usage_vals = UsageDatum.select().where(UsageDatum.timestamp >= yesterday and UsageDatum.timestamp < today)
+    usage_vals = UsageDatum.select().where((UsageDatum.timestamp >= yesterday), (UsageDatum.timestamp < today))
     array_stride = calc_stride(num_final, usage_vals.count())
     return usage_vals[::array_stride]
     
