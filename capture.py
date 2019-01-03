@@ -12,7 +12,8 @@ import json
 import datetime
 import calendar
 import time
-from ConfigParser import SafeConfigParser
+#from ConfigParser import SafeConfigParser
+from configparser import ConfigParser
 from xml.etree import ElementTree as ET
 import logging as log
 import sys
@@ -37,25 +38,30 @@ def get_demand_chunk(serial):
 
     while True:
         in_buf = serial.readline()
-        in_buf_stripped = in_buf.strip()
-        log.debug('>' + in_buf_stripped)
+        in_buf_stripped = in_buf.strip().decode("utf-8")
+        log.debug(in_buf_stripped)
+
+        if in_buf_stripped == '\x00':
+            log.debug('Skipping mark')
+            continue
 
         if not in_element:
             if in_buf_stripped == '<InstantaneousDemand>':
                 in_element = True
-                buf += in_buf
+                buf += in_buf.decode("utf-8")
+                log.debug('got start')
                 closestring = '</InstantaneousDemand>'
                 continue
             elif in_buf_stripped == '<CurrentSummationDelivered>':
                 in_element = True
-                buf += in_buf
+                buf += in_buf.decode("utf-8")
                 closestring = '</CurrentSummationDelivered>'
                 continue
             else:
                 continue
 
         if in_element:
-            buf += in_buf
+            buf += in_buf.decode("utf-8") 
 
         if in_buf_stripped == closestring:
             log.debug('got end of xml')
@@ -159,7 +165,7 @@ def loop(serial):
                     log.info('Current Usage: ' + demand['demand'] + 'W')
                     log.debug('Meter not yet read')
 
-        except Exception, err:
+        except Exception as err:
             log.exception('Caught a parse or DB error: ')
             continue
 
@@ -173,7 +179,7 @@ def setup():
         cfg_file = sys.argv[1]
 
     log.info('Reading configuration file ' + cfg_file)
-    cf = SafeConfigParser()
+    cf = ConfigParser()
     cf.read(cfg_file)
     log.info('Opening Raven...')
     serial_port = serial.Serial(cf.get('raven', 'port'), cf.getint('raven', 'baud'))
