@@ -18,6 +18,7 @@ app = Flask(__name__)
 
 log = logging.getLogger('raven-app')
 
+
 def calc_stride(num_max, item_count):
     if item_count <= num_max:
         return 1
@@ -63,8 +64,8 @@ def chart():
 @app.route('/latest')
 def latest():
     # Hook for Swift - retrieve latest reading only.
-    values = UsageDatum.first()
-    return make_response(jsonify(values), 200)
+    val = UsageDatum.select().order_by(UsageDatum.timestamp.desc()).get()
+    return make_respoinse({'kW': val.kw, 'timestamp': val.timestamp}, 200)
 
 
 if __name__ == '__main__':
