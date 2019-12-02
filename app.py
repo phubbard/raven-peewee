@@ -65,7 +65,7 @@ def chart():
 def latest():
     # Hook for Swift - retrieve latest reading only.
     val = UsageDatum.select().order_by(UsageDatum.timestamp.desc()).get()
-    return make_respoinse({'kW': val.kw, 'timestamp': val.timestamp}, 200)
+    return make_response({'kW': val.kW, 'timestamp': val.timestamp}, 200)
 
 
 if __name__ == '__main__':
