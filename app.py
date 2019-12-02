@@ -9,7 +9,7 @@ import datetime
 import logging
 import os
 from math import floor
-from flask import Flask, Markup, render_template, send_from_directory
+from flask import Flask, Markup, render_template, send_from_directory, make_response, jsonify
 
 from config import *
 from model import *
@@ -25,36 +25,47 @@ def calc_stride(num_max, item_count):
     array_stride = int(floor(item_count / num_max))
     return array_stride
 
-def get_yesterdays_readings(num_final=50):
-    # This needs a ton of work. And an index on the column.
-    # See http://peewee.readthedocs.org/en/latest/peewee/querying.html
+
+def get_yesterdays_readings(num_final=60):
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
-    usage_vals = UsageDatum.select().where((UsageDatum.timestamp >= yesterday), (UsageDatum.timestamp < today))
+    usage_vals = UsageDatum.select().where(UsageDatum.timestamp >= yesterday and UsageDatum.timestamp < today)
     array_stride = calc_stride(num_final, usage_vals.count())
     return usage_vals[::array_stride]
+
     
-def get_todays_readings(num_final=50):
+def get_todays_readings(num_final=60):
     usage_vals = UsageDatum.select().where(UsageDatum.timestamp >= datetime.date.today())
     array_stride = calc_stride(num_final, usage_vals.count())
     return usage_vals[::array_stride]
 
+
 def get_todays_totals():
     usage_vals = SumDatum.select().where(SumDatum.timestamp >= datetime.date.today())
     return usage_vals
+
 
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static'),
                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
+
 @app.route('/')
 def chart():
-
+    # Pull downsampled sets of data for today and yesterday
     labels, values = zip(*[(x.timestamp, x.kW) for x in get_todays_readings()])
 
     y_labels, y_values = zip(*[(x.timestamp, x.kW) for x in get_yesterdays_readings()])
     return render_template('chart.html', values=values, labels=labels, yesterday_values=y_values, yesterday_labels=y_labels)
+
+
+@app.route('/latest')
+def latest():
+    # Hook for Swift - retrieve latest reading only.
+    values = UsageDatum.first()
+    return make_response(jsonify(values), 200)
+
 
 if __name__ == '__main__':
 #    log.debug("Today's readings:")

@@ -185,5 +185,6 @@ def setup():
     serial_port = serial.Serial(cf.get('raven', 'port'), cf.getint('raven', 'baud'))
     loop(serial_port)
 
+
 if __name__ == '__main__':
     setup()

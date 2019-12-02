@@ -14,12 +14,13 @@ class BaseModel(Model):
     class Meta:
         database = db
 
+
 class UsageDatum(BaseModel):
     timestamp = DateTimeField(default=datetime.datetime.now, index=True)
     kW = FloatField(default=0.0)
-
     def __str__(self):
         return str(self.kW) + 'kW at ' + str(self.timestamp)
+
 
 class SumDatum(BaseModel):
     timestamp = DateTimeField(default=datetime.datetime.now, index=True)
@@ -27,6 +28,7 @@ class SumDatum(BaseModel):
 
     def __str__(self):
         return str(self.kWh) + 'kWh at ' + str(self.timestamp)
+
 
 def create_data():
     db.connect()
