@@ -27,15 +27,15 @@ def calc_stride(num_max, item_count):
     return array_stride
 
 
-def get_yesterdays_readings(num_final=60):
+def get_yesterdays_readings(num_final=100):
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
-    usage_vals = UsageDatum.select().where(UsageDatum.timestamp >= yesterday and UsageDatum.timestamp < today)
+    usage_vals = UsageDatum.select().where(UsageDatum.timestamp >= yesterday, UsageDatum.timestamp < today)
     array_stride = calc_stride(num_final, usage_vals.count())
     return usage_vals[::array_stride]
 
     
-def get_todays_readings(num_final=60):
+def get_todays_readings(num_final=100):
     usage_vals = UsageDatum.select().where(UsageDatum.timestamp >= datetime.date.today())
     array_stride = calc_stride(num_final, usage_vals.count())
     return usage_vals[::array_stride]
@@ -55,10 +55,13 @@ def favicon():
 @app.route('/')
 def chart():
     # Pull downsampled sets of data for today and yesterday
+    print('today')
     labels, values = zip(*[(x.timestamp, x.kW) for x in get_todays_readings()])
-
+    print('yesterday')
     y_labels, y_values = zip(*[(x.timestamp, x.kW) for x in get_yesterdays_readings()])
+    print('render')
     return render_template('chart.html', values=values, labels=labels, yesterday_values=y_values, yesterday_labels=y_labels)
+
 
 
 @app.route('/latest')

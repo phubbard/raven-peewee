@@ -4,18 +4,19 @@
 <title>Power and energy consumption</title>
       
 <!-- import plugin script -->   <script src='static/Chart.min.js'></script>   
-</head><body>
+</head>
+<body>
 
     <h2>Latest</h2>
     <pre>{{values[-1]}} Watts at {{labels[-1]}}</pre>
     
     <h2>Today</h2>
 <!-- bar chart canvas element -->
-<canvas id="today" width="1024" height="768"></canvas>
+<canvas id="today" width="1280" height="968"></canvas>
 
 <h2>Yesterday</h2>
 
-<canvas id="yesterday" width="1024" height="768"></canvas>
+<canvas id="yesterday" width="1280" height="968"></canvas>
 
 <script>
    // chart data
