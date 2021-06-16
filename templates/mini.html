@@ -50,7 +50,7 @@
     
     // Meter updates every 8 seconds, so every few seconds should be about right
     setInterval(() => {
-	fetch('/latest')
+	fetch('latest')
 	    .then(res => res.text())
 	    .then(datum => {
 		var nd = parseInt(datum);
