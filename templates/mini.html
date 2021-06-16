@@ -1,0 +1,64 @@
+<!DOCTYPE html><html lang="en">
+<head>   
+<meta charset="utf-8" />   
+<title>Power dashboard</title>
+
+<script src="static/gauge.min.js"></script>
+  
+</head>
+<body>
+<div id="c-wrap" width="100%">
+  <canvas id="gauge"></canvas>
+</div>
+
+  <!-- https://canvas-gauges.com/docs/2.0.0/class/lib/RadialGauge.js~RadialGauge.html -->
+  <script>
+    var min_v = -7000;
+    var max_v = 7000;
+    var radial = new RadialGauge(
+	{
+	    renderTo: 'gauge',
+	    width: 400,
+	    height: 400,
+	    units: 'Watts',
+	    title: false,
+	    value: {{latest}},
+	    minValue: min_v,
+	    maxValue: max_v,
+	    majorTicks: [-7000, -6000, -5000, -4000, -3000, -2000, -1000, 0, 1000, 2000, 3000, 4000, 5000, 6000, 7000],
+	    minorTicks: 2,
+	    strokeTicks: false,
+	    highlights: [
+		{ from: min_v, to: 0, color: 'rgba(0,255,0,.55)' },
+		{ from: 0, to: 4500, color: 'rgba(255,255,0,.15)' },
+		{ from: 4500, to: max_v, color: 'rgba(255,0,0,.75)' }
+	    ],
+	    colorPlate: '#222',
+	    colorMajorTicks: '#f5f5f5',
+	    colorMinorTicks: '#ddd',
+	    colorTitle: '#fff',
+	    colorUnits: '#ccc',
+	    colorNumbers: '#eee',
+	    colorNeedle: 'rgba(240, 128, 128, 1)',
+	    colorNeedleEnd: 'rgba(255, 160, 122, .9)',
+	    valueBox: true,
+	    animationRule: 'bounce',
+	    animationDuration: 500
+	});
+    
+    radial.draw();
+    
+    // Meter updates every 8 seconds, so every few seconds should be about right
+    setInterval(() => {
+	fetch('/latest')
+	    .then(res => res.text())
+	    .then(datum => {
+		var nd = parseInt(datum);
+		radial.value = nd;
+		//	      console.log(nd);
+	    });
+    }, 5000);
+    
+  </script>
+</body>
+</html>

@@ -2,79 +2,107 @@
 <head>   
 <meta charset="utf-8" />   
 <title>Power and energy consumption</title>
-      
-<!-- import plugin script -->   <script src='static/Chart.min.js'></script>   
+
+<script src="static/chart.js"></script>
+<!--
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@next/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+-->
+
 </head>
 <body>
 
-    <h2>Latest</h2>
-    <pre>{{values[-1]}} Watts at {{labels[-1]}}</pre>
-    
-    <h2>Today</h2>
-<!-- bar chart canvas element -->
-<canvas id="today" width="1280" height="968"></canvas>
-
-<h2>Yesterday</h2>
-
-<canvas id="yesterday" width="1280" height="968"></canvas>
+  Latest reading {{current}}
+  <canvas id="today" width="600" height="400"></canvas>
+  <canvas id="two_days" width="600" height="400"></canvas>
 
 <script>
-   // chart data
-   var todayData = {
-   labels : [{% for item in labels %}
-                  "{{item}}",
-              {% endfor %}],
-   datasets : [
-      {
-            fillColor: "rgba(151,187,205,0.2)",
-            strokeColor: "rgba(151,187,205,1)",
-            pointColor: "rgba(151,187,205,1)",
-         data : [{% for item in values %}
-                      {{item}},
-                    {% endfor %}]
-      }
+  // Use templates to convert python data into js
+  // NB https://stackoverflow.com/questions/45132524/python-passing-a-list-of-dict-in-javascript-flask#45132694
+  var two_days_data = {
+      datasets:[
+	  {
+	      label: "today",
+	      data: JSON.parse('{{today | tojson}}'),
+	      fill: false,
+	      borderColor: 'rgb(75, 222, 192)',
+	  },
+	  {
+	      label: "yesterday",
+	      data: JSON.parse('{{yesterday | tojson}}'),
+	      borderColor: 'rgba(5, 5, 100, 0.4)',	      
+	      fill: false,
+	  }
       ]
-   }
-   // chart data
-   var yesterdayData = {
-   labels : [{% for item in yesterday_labels %}
-                  "{{item}}",
-              {% endfor %}],
-   datasets : [
-      {
-            fillColor: "rgba(151,187,205,0.2)",
-            strokeColor: "rgba(151,187,205,1)",
-            pointColor: "rgba(151,187,205,1)",
-         data : [{% for item in yesterday_values %}
-                      {{item}},
-                    {% endfor %}]
-      }
+  };
+
+  var todays_data = {
+      datasets: [
+	  {
+	      label: '',
+	      data: JSON.parse('{{today_abs | tojson}}'),
+	      borderColor: 'rgb(75, 222, 192)'
+	  }
       ]
-   }
- 
-   // get chart canvas
-   var today_chart = document.getElementById("today").getContext("2d");
- 
-   // draw chart
-   new Chart(today_chart).Line(todayData, {
-        scaleStartValue: 0,
-        scaleShowVerticalLines: true,
-        scaleShowGridLines : true,
-        barShowStroke : true,
-        scaleShowLabels: true
-   });
- 
-   // get chart canvas
-   var yesterday_chart = document.getElementById("yesterday").getContext("2d");
- 
-   // draw chart
-   new Chart(yesterday_chart).Line(yesterdayData, {
-        scaleStartValue: 0,
-        scaleShowVerticalLines: true,
-        scaleShowGridLines : true,
-        barShowStroke : true,
-        scaleShowLabels: true
-   });
+  };
+	  
+  // Updated 6/15/21, from chartjs.org docs
+  const config = {
+      type: 'scatter',
+      data: two_days_data,
+      options: {
+	  plugins: {
+	      title: {
+		  text: 'Yesterday versus today',
+		  display: true
+	      }
+	  },
+	  responsive: true,
+	  scales: {
+	      x: {
+		  display: true,
+		  max: 24,
+		  title: {
+		      display: true,
+		      text: 'Hour of the day'
+		  }
+	      },
+              y: {
+		  title: {
+		      display: true,
+		      text: 'watts (pos is use, negative is generating)'
+		  }
+              }
+	  }
+      }
+  };
+  var chart = new Chart(document.getElementById("two_days"), config);
+
+  
+  const today_only_config = {
+      type: 'line',
+      data: todays_data,
+      options: {
+	   plugins: {
+              title: {
+                  text: 'Household power today',
+                  display: true
+              }
+          },
+          responsive: true,
+          scales: {
+              x: {
+                  display: true,
+              },
+              y: {
+                  title: {
+                      display: true,
+                      text: 'watts (pos is use, negative is generating)'
+                  }
+              }
+          }
+      }
+  };
+  var today_chart = new Chart(document.getElementById("today"), today_only_config);
  
 </script>
 </body></html>
