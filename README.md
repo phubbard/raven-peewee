@@ -2,9 +2,19 @@
 
 This is a 2-part system for capturing and displaying electrical power consumption data from my house. I have an [SDG&E](https://sdge.com) 'smart' meter and a [Raven Zigbee USB radio](https://rainforestautomation.com/our-products/) for hardware. This code has a USB/serial listener that saves data to a SQLite database and a Flask/D3.js front end that simply display today's and yesterdays' usage. 
 
-Pretty simple.
+Pretty simple. There are three canned visualizations that cover my needs. A gauge that updates (using the js setInterval timer) every five seconds:
 
-![screenshot](docs/screenshot.png)
+![screenshot](docs/gauge.png)
+
+A graph of today's data, decimate to plot one hundred data points, plus a top line about the latest update:
+
+![screenshot](docs/dayplot.png)
+
+Lastly, a display of today versus yesterday, again decimated down to 100 points per day:
+
+![screenshot](docs/comparo.png)
+
+Way more is possible, of course, but for now those are self-hosted, reliable and suffice.
 
 ## Setup and install
 
