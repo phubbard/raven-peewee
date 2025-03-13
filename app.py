@@ -10,7 +10,7 @@ import os
 from math import floor
 
 from peewee import *
-from flask import Flask, Markup, render_template, send_from_directory, make_response, jsonify
+from flask import Flask, render_template, send_from_directory, make_response, jsonify
 
 from config import *
 from model import *
