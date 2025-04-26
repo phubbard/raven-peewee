@@ -5,7 +5,6 @@ __date__ = '7/23/15'
 
 from peewee import *
 import datetime
-import logging
 
 from config import *
 

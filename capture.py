@@ -12,60 +12,117 @@ import json
 import datetime
 import calendar
 import time
+from enum import Enum, auto
 #from ConfigParser import SafeConfigParser
 from configparser import ConfigParser
 from xml.etree import ElementTree as ET
-import logging as log
 import sys
 
 import serial
 import requests
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.traceback import install
+from rich.progress import Progress, SpinnerColumn, TextColumn
+import logging
 
 from version import VERSION
 
 from model import *
 from config import *
 
+# Install rich traceback handler
+install()
+
+# Configure Rich console with theme
+console = Console(theme={
+    "logging.level.debug": "dim",
+    "logging.level.info": "cyan",
+    "logging.level.warning": "yellow",
+    "logging.level.error": "bold red",
+    "logging.level.critical": "bold red",
+})
+
+# Configure logging with Rich
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(
+        console=console,
+        rich_tracebacks=True,
+        markup=True,
+        show_time=True,
+        show_path=True
+    )]
+)
 
 log = logging.getLogger('raven-capture')
 
+class ParserState(Enum):
+    """States for the XML parser state machine"""
+    WAITING = auto()
+    IN_INSTANTANEOUS_DEMAND = auto()
+    IN_CURRENT_SUMMATION = auto()
+
+class ParserStateMachine:
+    """State machine for parsing XML data from the Raven device"""
+    
+    def __init__(self):
+        self.state = ParserState.WAITING
+        self.buffer = ''
+        self.close_tag = None
+        
+    def process_line(self, line):
+        """Process a single line of input and return complete XML if found"""
+        line = line.strip().decode("utf-8")
+        log.debug(f"[cyan]Received line:[/cyan] {line}")
+        
+        if line == '\x00':
+            log.debug('[yellow]Skipping mark[/yellow]')
+            return None
+            
+        if self.state == ParserState.WAITING:
+            if line == '<InstantaneousDemand>':
+                self.state = ParserState.IN_INSTANTANEOUS_DEMAND
+                self.buffer = line
+                self.close_tag = '</InstantaneousDemand>'
+                log.debug('[green]Got start of InstantaneousDemand[/green]')
+                return None
+            elif line == '<CurrentSummationDelivered>':
+                self.state = ParserState.IN_CURRENT_SUMMATION
+                self.buffer = line
+                self.close_tag = '</CurrentSummationDelivered>'
+                log.debug('[green]Got start of CurrentSummationDelivered[/green]')
+                return None
+            return None
+            
+        # We're in an element, accumulate the line
+        self.buffer += line
+        
+        if line == self.close_tag:
+            log.debug('[green]Got end of XML element[/green]')
+            result = self.buffer
+            self.reset()
+            return result
+            
+        return None
+        
+    def reset(self):
+        """Reset the state machine to initial state"""
+        self.state = ParserState.WAITING
+        self.buffer = ''
+        self.close_tag = None
+
 def get_demand_chunk(serial):
-    # FIXME Bug where it never re-syncs if reads start mid-block. Needs a rewrite.
-
-    buf = ''
-    in_element = False
-    closestring = '</InstantaneousDemand>'
-
+    """Get a complete XML chunk from the serial port using the state machine"""
+    parser = ParserStateMachine()
+    
     while True:
         in_buf = serial.readline()
-        in_buf_stripped = in_buf.strip().decode("utf-8")
-        log.debug(in_buf_stripped)
-
-        if in_buf_stripped == '\x00':
-            log.debug('Skipping mark')
-            continue
-
-        if not in_element:
-            if in_buf_stripped == '<InstantaneousDemand>':
-                in_element = True
-                buf += in_buf.decode("utf-8")
-                log.debug('got start')
-                closestring = '</InstantaneousDemand>'
-                continue
-            elif in_buf_stripped == '<CurrentSummationDelivered>':
-                in_element = True
-                buf += in_buf.decode("utf-8")
-                closestring = '</CurrentSummationDelivered>'
-                continue
-            else:
-                continue
-
-        if in_element:
-            buf += in_buf.decode("utf-8") 
-
-        if in_buf_stripped == closestring:
-            log.debug('got end of xml')
-            return buf
+        result = parser.process_line(in_buf)
+        if result is not None:
+            return result
 
 def process_demand(elem):
     """
@@ -101,75 +158,81 @@ def loop(serial):
     """
     Read a chunk, buffer until complete, parse and send it on.
     """
-
-    log.info('Loop starting')
+    log.info('[bold green]Starting main loop[/bold green]')
     havereading = False
     havenewreading = False
 
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True
+    ) as progress:
+        progress.add_task("[cyan]Monitoring energy usage...", total=None)
+        
+        while True:
+            log.debug('[dim]Reading from serial port[/dim]')
+            data_chunk = get_demand_chunk(serial)
+            log.debug('[dim]Parsing XML[/dim]')
+            try:
+                elem = ET.fromstring(data_chunk)
+                demand = process_demand(elem)
 
-    while True:
-        log.debug('reading from serial')
-        data_chunk = get_demand_chunk(serial)
-        log.debug('Parsing XML')
-        try:
-            elem = ET.fromstring(data_chunk)
-            demand = process_demand(elem)
-
-            #type 1 is a CurrentSummation Packet (a meter reading packet)
-            if demand['type'] == 1:
-                if havereading:
-                    proposedreading = (float(demand['summationdelivered']) - float(demand['summationreceived']))/1000.0
-                    if proposedreading != hardmeterreading:
-                        meterreading = proposedreading
+                #type 1 is a CurrentSummation Packet (a meter reading packet)
+                if demand['type'] == 1:
+                    if havereading:
+                        proposedreading = (float(demand['summationdelivered']) - float(demand['summationreceived']))/1000.0
+                        if proposedreading != hardmeterreading:
+                            meterreading = proposedreading
+                            hardmeterreading = meterreading
+                            readingtime = demand['atinsec']
+                            havenewreading = True
+                            log.info(f'[bold green]Actual Meter reading:[/bold green] {meterreading:.2f} kWh')
+                        else:
+                            log.info('[yellow]Ignoring repeated Meter Reading[/yellow]')
+                    else:
+                        havereading = True
+                        meterreading = (float(demand['summationdelivered']) - float(demand['summationreceived']))/1000.0
                         hardmeterreading = meterreading
                         readingtime = demand['atinsec']
-                        havenewreading = True
-                        log.info('Actual Meter reading: ' + str(meterreading) + 'kWh')
-                    else:
-                        log.info('Ignoring repeated Meter Reading')
-                else:
-                    havereading = True
-                    meterreading = (float(demand['summationdelivered']) - float(demand['summationreceived']))/1000.0
-                    hardmeterreading = meterreading
-                    readingtime = demand['atinsec']
-                    log.info("Meter reading: " + str(meterreading) + "kWh (possibly stale reading)")
-                    value = SumDatum()
-                    value.kWh = meterreading
+                        log.info(f"[yellow]Meter reading:[/yellow] {meterreading:.2f} kWh [yellow](possibly stale reading)[/yellow]")
+                        value = SumDatum()
+                        value.kWh = meterreading
+                        value.save()
+                    
+                #type 0 is a InstantaneousDemand Packet
+                if demand['type'] == 0:
+                    value = UsageDatum()
+                    value.kW = float(demand['demand'])
                     value.save()
-                
-            #type 0 is a InstantaneousDemand Packet
-            if demand['type'] == 0:
-                value = UsageDatum()
-                value.kW = float(demand['demand'])
-                value.save()
 
-                if havenewreading:
-                    previousreadingtime = readingtime
-                    previousmeterreading = meterreading
-                    previousreadingtime = readingtime
-                    readingtime = demand['atinsec']
-                    meterreading =   previousmeterreading + 1.0*(int(readingtime) - int(previousreadingtime))*float(demand['demand'])/(60*60*1000)
-                    log.info('Current Usage: ' + demand['demand'] + 'W')
-                    log.info('Approximate Meter Reading: ' + str(meterreading) + 'kWh')
-                    log.info('Last Actual Meter Reading: ' + str(hardmeterreading) + 'kWh')
+                    if havenewreading:
+                        previousreadingtime = readingtime
+                        previousmeterreading = meterreading
+                        previousreadingtime = readingtime
+                        readingtime = demand['atinsec']
+                        meterreading = previousmeterreading + 1.0*(int(readingtime) - int(previousreadingtime))*float(demand['demand'])/(60*60*1000)
+                        log.info(f'[bold cyan]Current Usage:[/bold cyan] {demand["demand"]} W')
+                        log.info(f'[cyan]Approximate Meter Reading:[/cyan] {meterreading:.2f} kWh')
+                        log.info(f'[cyan]Last Actual Meter Reading:[/cyan] {hardmeterreading:.2f} kWh')
 
-                elif havereading:
-                    previousmeterreading = meterreading
-                    previousreadingtime = readingtime
-                    readingtime = demand['atinsec']
-                    meterreading = previousmeterreading + 1.0*(int(readingtime) - int(previousreadingtime))*float(demand['demand'])/(60*60*1000)
-                    log.info('Current Usage: ' + demand['demand'])
-                    log.info('Approximate Meter Reading: ' + str(meterreading) + 'kWh, but based on possibly stale meter reading.')
-                    log.info('Last Actual Meter Reading: ' + str(hardmeterreading) + 'kWh (possibly stale reading)')
-                else:
-                    log.info('Current Usage: ' + demand['demand'] + 'W')
-                    log.debug('Meter not yet read')
+                    elif havereading:
+                        previousmeterreading = meterreading
+                        previousreadingtime = readingtime
+                        readingtime = demand['atinsec']
+                        meterreading = previousmeterreading + 1.0*(int(readingtime) - int(previousreadingtime))*float(demand['demand'])/(60*60*1000)
+                        log.info(f'[cyan]Current Usage:[/cyan] {demand["demand"]} W')
+                        log.info(f'[yellow]Approximate Meter Reading:[/yellow] {meterreading:.2f} kWh [yellow](based on possibly stale meter reading)[/yellow]')
+                        log.info(f'[yellow]Last Actual Meter Reading:[/yellow] {hardmeterreading:.2f} kWh [yellow](possibly stale reading)[/yellow]')
+                    else:
+                        log.info(f'[cyan]Current Usage:[/cyan] {demand["demand"]} W')
+                        log.debug('[dim]Meter not yet read[/dim]')
 
-        except Exception as err:
-            log.exception('Caught a parse or DB error: ')
-            continue
+            except Exception as err:
+                log.exception('[bold red]Caught a parse or DB error:[/bold red]')
+                continue
 
-        # TODO return pre-set X and Y from process_demand
+            # TODO return pre-set X and Y from process_demand
 
 
 
@@ -178,10 +241,10 @@ def setup():
     if (len(sys.argv) == 2):
         cfg_file = sys.argv[1]
 
-    log.info('Reading configuration file ' + cfg_file)
+    log.info(f'[bold cyan]Reading configuration file[/bold cyan] {cfg_file}')
     cf = ConfigParser()
     cf.read(cfg_file)
-    log.info('Opening Raven...')
+    log.info('[bold green]Opening Raven...[/bold green]')
     serial_port = serial.Serial(cf.get('raven', 'port'), cf.getint('raven', 'baud'))
     loop(serial_port)
 

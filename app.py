@@ -5,16 +5,44 @@ __date__ = '7/23/15'
 
 # see https://pythonspot.com/flask-and-great-looking-charts-using-chart-js/
 import datetime
-import logging
 import os
 from math import floor
 
 from peewee import *
 from flask import Flask, render_template, send_from_directory, make_response, jsonify
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.traceback import install
+import logging
 
 from config import *
 from model import *
 
+# Install rich traceback handler
+install()
+
+# Configure Rich console with theme
+console = Console(theme={
+    "logging.level.debug": "dim",
+    "logging.level.info": "cyan",
+    "logging.level.warning": "yellow",
+    "logging.level.error": "bold red",
+    "logging.level.critical": "bold red",
+})
+
+# Configure logging with Rich
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(
+        console=console,
+        rich_tracebacks=True,
+        markup=True,
+        show_time=True,
+        show_path=True
+    )]
+)
 
 app = Flask(__name__)
 log = logging.getLogger('raven-app')
@@ -88,41 +116,47 @@ def favicon():
 def rel_chart():
     # Pull downsampled sets of data for today and yesterday
     # TODO this is 4 SQL queries - rewrite for single query, this is a bottleneck
+    log.info('[cyan]Fetching chart data[/cyan]')
     today_data = get_todays_readings_relative()
     yd_data = get_yesterdays_readings_relative()
     today_abs = get_todays_readings()
     last = get_latest_reading()
     if last > 0:
         current = f'{last}W (consuming from grid)'
+        log.info(f'[green]Current usage:[/green] {current}')
     else:
         current = f'{last}W (generating to grid)'
+        log.info(f'[green]Current generation:[/green] {current}')
     return render_template('chart.html', today=today_data, yesterday=yd_data, current=current, today_abs=today_abs)
 
 
 @app.route('/latest')
 def latest_value():
     # API for gauge updates
-    return make_response(str(get_latest_reading()))
+    val = get_latest_reading()
+    log.debug(f'[dim]Latest value:[/dim] {val}W')
+    return make_response(str(val))
 
 
 @app.route('/mini')
 def mini_chart():
     # Goal here is mobile-friendly dashboard - latest reading and a pre-scaled min/max display
     val = get_latest_reading()
+    log.debug(f'[dim]Mini chart value:[/dim] {val}W')
     return render_template('mini.html', latest=val)
 
 
 @app.route('/old')
 def chart():
     # Pull downsampled sets of data for today and yesterday
-    print('today')
+    log.info('[cyan]Fetching old chart data[/cyan]')
     labels, values = zip(*[(x.timestamp, x.kW) for x in get_todays_readings()])
-    print('yesterday')
     y_labels, y_values = zip(*[(x.timestamp, x.kW) for x in get_yesterdays_readings()])
-    print('render')
+    log.info('[cyan]Rendering old chart template[/cyan]')
     return render_template('chart.html', values=values, labels=labels, yesterday_values=y_values, yesterday_labels=y_labels)
 
 
-
 if __name__ == '__main__':
+    log.info('[bold green]Starting Raven web server[/bold green]')
+    log.info(f'[cyan]Server will be available at:[/cyan] [bold]http://0.0.0.0:5050[/bold]')
     app.run(host='0.0.0.0', port=5050, debug=True)
