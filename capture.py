@@ -37,16 +37,6 @@ from config import *
 # Install rich traceback handler
 install()
 
-# Configure Rich console with theme
-custom_theme = Theme({
-    "logging.level.debug": "dim",
-    "logging.level.info": "cyan",
-    "logging.level.warning": "yellow",
-    "logging.level.error": "bold red",
-    "logging.level.critical": "bold red",
-})
-console = Console(theme=custom_theme)
-
 # Create logs directory if it doesn't exist
 log_dir = 'logs'
 if not os.path.exists(log_dir):
@@ -63,22 +53,41 @@ file_handler.setFormatter(logging.Formatter(
     '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 ))
 
-# Configure console handler with Rich
-console_handler = RichHandler(
-    console=console,
-    rich_tracebacks=True,
-    markup=True,
-    show_time=True,
-    show_path=True
-)
-
-# Configure root logger
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[console_handler, file_handler]
-)
+# Check if we're running in a terminal
+if sys.stdout.isatty():
+    # Configure Rich console with theme
+    custom_theme = Theme({
+        "logging.level.debug": "dim",
+        "logging.level.info": "cyan",
+        "logging.level.warning": "yellow",
+        "logging.level.error": "bold red",
+        "logging.level.critical": "bold red",
+    })
+    console = Console(theme=custom_theme)
+    
+    # Configure console handler with Rich
+    console_handler = RichHandler(
+        console=console,
+        rich_tracebacks=True,
+        markup=True,
+        show_time=True,
+        show_path=True
+    )
+    
+    # Configure root logger with both handlers
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[console_handler, file_handler]
+    )
+else:
+    # If not in a terminal, only use file handler
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[file_handler]
+    )
 
 log = logging.getLogger('raven-capture')
 
