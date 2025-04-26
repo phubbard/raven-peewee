@@ -7,6 +7,7 @@ __date__ = '7/23/15'
 import datetime
 import os
 from math import floor
+from logging.handlers import RotatingFileHandler
 
 from peewee import *
 from flask import Flask, render_template, send_from_directory, make_response, jsonify
@@ -32,18 +33,37 @@ custom_theme = Theme({
 })
 console = Console(theme=custom_theme)
 
-# Configure logging with Rich
+# Create logs directory if it doesn't exist
+log_dir = 'logs'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+# Configure file handler for plain text logging with rotation
+file_handler = RotatingFileHandler(
+    os.path.join(log_dir, 'app.log'),
+    maxBytes=100000,  # ~1000 lines
+    backupCount=1,    # Keep one backup file
+    encoding='utf-8'
+)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+))
+
+# Configure console handler with Rich
+console_handler = RichHandler(
+    console=console,
+    rich_tracebacks=True,
+    markup=True,
+    show_time=True,
+    show_path=True
+)
+
+# Configure root logger
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
     datefmt="[%X]",
-    handlers=[RichHandler(
-        console=console,
-        rich_tracebacks=True,
-        markup=True,
-        show_time=True,
-        show_path=True
-    )]
+    handlers=[console_handler, file_handler]
 )
 
 app = Flask(__name__)
