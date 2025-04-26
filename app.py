@@ -13,6 +13,7 @@ from flask import Flask, render_template, send_from_directory, make_response, js
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.traceback import install
+from rich.theme import Theme
 import logging
 
 from config import *
@@ -22,13 +23,14 @@ from model import *
 install()
 
 # Configure Rich console with theme
-console = Console(theme={
+custom_theme = Theme({
     "logging.level.debug": "dim",
     "logging.level.info": "cyan",
     "logging.level.warning": "yellow",
     "logging.level.error": "bold red",
     "logging.level.critical": "bold red",
 })
+console = Console(theme=custom_theme)
 
 # Configure logging with Rich
 logging.basicConfig(

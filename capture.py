@@ -24,6 +24,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.traceback import install
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.theme import Theme
 import logging
 
 from version import VERSION
@@ -35,13 +36,14 @@ from config import *
 install()
 
 # Configure Rich console with theme
-console = Console(theme={
+custom_theme = Theme({
     "logging.level.debug": "dim",
     "logging.level.info": "cyan",
     "logging.level.warning": "yellow",
     "logging.level.error": "bold red",
     "logging.level.critical": "bold red",
 })
+console = Console(theme=custom_theme)
 
 # Configure logging with Rich
 logging.basicConfig(
