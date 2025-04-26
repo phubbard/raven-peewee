@@ -194,77 +194,83 @@ def loop(serial):
     havereading = False
     havenewreading = False
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-        transient=True
-    ) as progress:
-        progress.add_task("[cyan]Monitoring energy usage...", total=None)
-        
-        while True:
-            log.debug('[dim]Reading from serial port[/dim]')
-            data_chunk = get_demand_chunk(serial)
-            log.debug('[dim]Parsing XML[/dim]')
-            try:
-                elem = ET.fromstring(data_chunk)
-                demand = process_demand(elem)
+    if sys.stdout.isatty():
+        # Only show progress when running in a terminal
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True
+        ) as progress:
+            progress.add_task("[cyan]Monitoring energy usage...", total=None)
+            _run_loop(serial, havereading, havenewreading)
+    else:
+        # Run without progress indicator when not in a terminal
+        _run_loop(serial, havereading, havenewreading)
 
-                #type 1 is a CurrentSummation Packet (a meter reading packet)
-                if demand['type'] == 1:
-                    if havereading:
-                        proposedreading = (float(demand['summationdelivered']) - float(demand['summationreceived']))/1000.0
-                        if proposedreading != hardmeterreading:
-                            meterreading = proposedreading
-                            hardmeterreading = meterreading
-                            readingtime = demand['atinsec']
-                            havenewreading = True
-                            log.info(f'[bold green]Actual Meter reading:[/bold green] {meterreading:.2f} kWh')
-                        else:
-                            log.info('[yellow]Ignoring repeated Meter Reading[/yellow]')
-                    else:
-                        havereading = True
-                        meterreading = (float(demand['summationdelivered']) - float(demand['summationreceived']))/1000.0
+def _run_loop(serial, havereading, havenewreading):
+    """Internal loop function that handles the actual monitoring"""
+    while True:
+        log.debug('[dim]Reading from serial port[/dim]')
+        data_chunk = get_demand_chunk(serial)
+        log.debug('[dim]Parsing XML[/dim]')
+        try:
+            elem = ET.fromstring(data_chunk)
+            demand = process_demand(elem)
+
+            #type 1 is a CurrentSummation Packet (a meter reading packet)
+            if demand['type'] == 1:
+                if havereading:
+                    proposedreading = (float(demand['summationdelivered']) - float(demand['summationreceived']))/1000.0
+                    if proposedreading != hardmeterreading:
+                        meterreading = proposedreading
                         hardmeterreading = meterreading
                         readingtime = demand['atinsec']
-                        log.info(f"[yellow]Meter reading:[/yellow] {meterreading:.2f} kWh [yellow](possibly stale reading)[/yellow]")
-                        value = SumDatum()
-                        value.kWh = meterreading
-                        value.save()
-                    
-                #type 0 is a InstantaneousDemand Packet
-                if demand['type'] == 0:
-                    value = UsageDatum()
-                    value.kW = float(demand['demand'])
-                    value.save()
-
-                    if havenewreading:
-                        previousreadingtime = readingtime
-                        previousmeterreading = meterreading
-                        previousreadingtime = readingtime
-                        readingtime = demand['atinsec']
-                        meterreading = previousmeterreading + 1.0*(int(readingtime) - int(previousreadingtime))*float(demand['demand'])/(60*60*1000)
-                        log.info(f'[bold cyan]Current Usage:[/bold cyan] {demand["demand"]} W')
-                        log.info(f'[cyan]Approximate Meter Reading:[/cyan] {meterreading:.2f} kWh')
-                        log.info(f'[cyan]Last Actual Meter Reading:[/cyan] {hardmeterreading:.2f} kWh')
-
-                    elif havereading:
-                        previousmeterreading = meterreading
-                        previousreadingtime = readingtime
-                        readingtime = demand['atinsec']
-                        meterreading = previousmeterreading + 1.0*(int(readingtime) - int(previousreadingtime))*float(demand['demand'])/(60*60*1000)
-                        log.info(f'[cyan]Current Usage:[/cyan] {demand["demand"]} W')
-                        log.info(f'[yellow]Approximate Meter Reading:[/yellow] {meterreading:.2f} kWh [yellow](based on possibly stale meter reading)[/yellow]')
-                        log.info(f'[yellow]Last Actual Meter Reading:[/yellow] {hardmeterreading:.2f} kWh [yellow](possibly stale reading)[/yellow]')
+                        havenewreading = True
+                        log.info(f'[bold green]Actual Meter reading:[/bold green] {meterreading:.2f} kWh')
                     else:
-                        log.info(f'[cyan]Current Usage:[/cyan] {demand["demand"]} W')
-                        log.debug('[dim]Meter not yet read[/dim]')
+                        log.info('[yellow]Ignoring repeated Meter Reading[/yellow]')
+                else:
+                    havereading = True
+                    meterreading = (float(demand['summationdelivered']) - float(demand['summationreceived']))/1000.0
+                    hardmeterreading = meterreading
+                    readingtime = demand['atinsec']
+                    log.info(f"[yellow]Meter reading:[/yellow] {meterreading:.2f} kWh [yellow](possibly stale reading)[/yellow]")
+                    value = SumDatum()
+                    value.kWh = meterreading
+                    value.save()
+                
+            #type 0 is a InstantaneousDemand Packet
+            if demand['type'] == 0:
+                value = UsageDatum()
+                value.kW = float(demand['demand'])
+                value.save()
 
-            except Exception as err:
-                log.exception('[bold red]Caught a parse or DB error:[/bold red]')
-                continue
+                if havenewreading:
+                    previousreadingtime = readingtime
+                    previousmeterreading = meterreading
+                    previousreadingtime = readingtime
+                    readingtime = demand['atinsec']
+                    meterreading = previousmeterreading + 1.0*(int(readingtime) - int(previousreadingtime))*float(demand['demand'])/(60*60*1000)
+                    log.info(f'[bold cyan]Current Usage:[/bold cyan] {demand["demand"]} W')
+                    log.info(f'[cyan]Approximate Meter Reading:[/cyan] {meterreading:.2f} kWh')
+                    log.info(f'[cyan]Last Actual Meter Reading:[/cyan] {hardmeterreading:.2f} kWh')
 
-            # TODO return pre-set X and Y from process_demand
+                elif havereading:
+                    previousmeterreading = meterreading
+                    previousreadingtime = readingtime
+                    readingtime = demand['atinsec']
+                    meterreading = previousmeterreading + 1.0*(int(readingtime) - int(previousreadingtime))*float(demand['demand'])/(60*60*1000)
+                    log.info(f'[cyan]Current Usage:[/cyan] {demand["demand"]} W')
+                    log.info(f'[yellow]Approximate Meter Reading:[/yellow] {meterreading:.2f} kWh [yellow](based on possibly stale meter reading)[/yellow]')
+                    log.info(f'[yellow]Last Actual Meter Reading:[/yellow] {hardmeterreading:.2f} kWh [yellow](possibly stale reading)[/yellow]')
+                else:
+                    log.info(f'[cyan]Current Usage:[/cyan] {demand["demand"]} W')
+                    log.debug('[dim]Meter not yet read[/dim]')
+
+        except Exception as err:
+            log.exception('[bold red]Caught a parse or DB error:[/bold red]')
+            continue
 
 
 
